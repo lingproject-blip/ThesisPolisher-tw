@@ -164,8 +164,8 @@ const App: React.FC = () => {
                 ) : null}
               </div>
             ) : result ? (
-              <div className="flex-grow flex flex-col">
-                <div className="flex-grow p-6 overflow-y-auto">
+              <div className="flex-grow flex flex-col min-h-0">
+                <div className="flex-1 p-6 overflow-y-auto min-h-0">
                   {isEditingFinal ? (
                     <textarea
                       value={finalText}
@@ -183,7 +183,7 @@ const App: React.FC = () => {
                 </div>
 
                 {/* Style Learning Controls */}
-                <div className="p-4 bg-amber-50/50 border-t border-amber-100 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+                <div className="flex-shrink-0 p-4 bg-amber-50/50 border-t border-amber-100 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
                   <div className="flex gap-2 items-center flex-wrap">
                     {!isEditingFinal ? (
                       <button
