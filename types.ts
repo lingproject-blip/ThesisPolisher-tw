@@ -1,12 +1,16 @@
-import React from 'react';
+export interface ApiKeyStatus {
+  id: string;
+  key: string;
+  status: 'available' | 'warning' | 'failed' | 'untested';
+  lastUsed: number;
+  failCount: number;
+  successCount: number;
+  displayName?: string;
+}
 
 export interface PolishResult {
   original: string;
   polished: string;
   timestamp: number;
-}
-
-export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  isLoading?: boolean;
-  variant?: 'primary' | 'secondary' | 'ghost';
+  apiKeyId?: string;
 }

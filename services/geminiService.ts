@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { apiKeyManager } from "./apiKeyManager";
 
 const SYSTEM_INSTRUCTION = `
 你是一位經驗豐富的學術論文盲審教授，同時也是一位深諳繁體中文（台灣）學術寫作的專家。你的任務是優化學生提供的論文草稿。
@@ -26,71 +27,109 @@ const RETRY_DELAY = 1000; // 1 second
 // Helper function to delay execution
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+// Determine error type from error message
+function getErrorType(errorMessage: string): 'quota' | 'auth' | 'network' | 'other' {
+  const msg = errorMessage.toLowerCase();
+
+  if (msg.includes('quota') || msg.includes('rate limit') || msg.includes('429')) {
+    return 'quota';
+  }
+  if (msg.includes('api key') || msg.includes('authentication') || msg.includes('unauthorized') || msg.includes('401') || msg.includes('403')) {
+    return 'auth';
+  }
+  if (msg.includes('network') || msg.includes('timeout') || msg.includes('econnrefused')) {
+    return 'network';
+  }
+  return 'other';
+}
+
 export const polishThesis = async (text: string): Promise<string> => {
-  // Validate API key
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  
-  if (!apiKey) {
-    throw new Error("API 密鑰未設置。請在 .env.local 文件中設置 VITE_GEMINI_API_KEY。");
+  // Check if any API keys are configured
+  if (!apiKeyManager.hasKeys()) {
+    throw new Error("尚未設置 API 密鑰。請在設置中添加至少一個 Gemini API 密鑰。");
   }
 
   let lastError: Error | null = null;
+  const maxKeyAttempts = apiKeyManager.getAvailableKeys().length;
 
-  // Retry logic for transient errors
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      const ai = new GoogleGenAI({ apiKey });
-      
-      // Using gemini-1.5-flash for reliable text generation
-      const response = await ai.models.generateContent({
-        model: 'gemini-1.5-flash',
-        contents: text,
-        config: {
-          systemInstruction: SYSTEM_INSTRUCTION,
-          temperature: 0.7, // Slightly creative to ensure natural flow
-          topP: 0.95,
-          maxOutputTokens: 2000,
+  // Try with different API keys
+  for (let keyAttempt = 0; keyAttempt < maxKeyAttempts; keyAttempt++) {
+    const apiKey = apiKeyManager.getCurrentKey();
+
+    if (!apiKey) {
+      throw new Error("所有 API 密鑰都已失效。請檢查密鑰狀態或添加新的密鑰。");
+    }
+
+    // Retry logic for transient errors with current key
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const ai = new GoogleGenAI({ apiKey });
+
+        // Using gemini-1.5-flash for reliable text generation
+        const response = await ai.models.generateContent({
+          model: 'gemini-1.5-flash',
+          contents: text,
+          config: {
+            systemInstruction: SYSTEM_INSTRUCTION,
+            temperature: 0.7,
+            topP: 0.95,
+            maxOutputTokens: 2000,
+          }
+        });
+
+        const polishedText = response.text;
+
+        if (!polishedText) {
+          throw new Error("模型未返回任何內容，請稍後再試。");
         }
-      });
 
-      const polishedText = response.text;
+        // Mark success for current key
+        apiKeyManager.markSuccess();
 
-      if (!polishedText) {
-        throw new Error("模型未返回任何內容，請稍後再試。");
-      }
+        return polishedText.trim();
 
-      return polishedText.trim();
-      
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
-      console.error(`Gemini API Error (attempt ${attempt + 1}/${MAX_RETRIES + 1}):`, error);
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        const errorMessage = lastError.message.toLowerCase();
+        const errorType = getErrorType(errorMessage);
 
-      // Parse specific error types
-      const errorMessage = lastError.message.toLowerCase();
-      
-      // Don't retry on authentication errors
-      if (errorMessage.includes('api key') || errorMessage.includes('authentication') || errorMessage.includes('unauthorized')) {
-        throw new Error("API 密鑰無效或已過期。請檢查您的 Gemini API 密鑰設置。");
-      }
-      
-      // Don't retry on quota errors
-      if (errorMessage.includes('quota') || errorMessage.includes('rate limit')) {
-        throw new Error("API 配額已用盡或超出速率限制。請稍後再試或檢查您的 API 配額。");
-      }
+        console.error(`Gemini API Error (key attempt ${keyAttempt + 1}, retry ${attempt + 1}/${MAX_RETRIES + 1}):`, error);
 
-      // Don't retry on invalid input
-      if (errorMessage.includes('invalid') && errorMessage.includes('input')) {
-        throw new Error("輸入內容格式有誤，請檢查後重試。");
-      }
+        // For quota or auth errors, don't retry with same key - switch immediately
+        if (errorType === 'quota' || errorType === 'auth') {
+          apiKeyManager.markFailure(errorType);
 
-      // Retry on network errors or temporary issues
-      if (attempt < MAX_RETRIES) {
-        await delay(RETRY_DELAY * (attempt + 1)); // Exponential backoff
-        continue;
+          if (errorType === 'quota') {
+            console.log('Quota exceeded, switching to next API key...');
+            break; // Break retry loop, try next key
+          }
+          if (errorType === 'auth') {
+            console.log('Authentication failed, switching to next API key...');
+            break; // Break retry loop, try next key
+          }
+        }
+
+        // For network errors, retry with same key
+        if (errorType === 'network' && attempt < MAX_RETRIES) {
+          await delay(RETRY_DELAY * (attempt + 1));
+          continue;
+        }
+
+        // For other errors, mark and retry
+        if (attempt >= MAX_RETRIES) {
+          apiKeyManager.markFailure(errorType);
+          break; // Break retry loop, try next key
+        }
       }
     }
   }
 
-  // If all retries failed, throw the last error
-  throw new Error(`潤飾過程中發生錯誤：${lastError?.message || '未知錯誤'}。請檢查網路連線或稍後再試。`);
+  // If all keys failed, throw error with helpful message
+  const stats = apiKeyManager.getStats();
+  throw new Error(
+    `所有 API 密鑰都無法使用。` +
+    `可用: ${stats.available}/${stats.total}。` +
+    `最後錯誤: ${lastError?.message || '未知錯誤'}。` +
+    `請檢查密鑰狀態或添加新的密鑰。`
+  );
 };
