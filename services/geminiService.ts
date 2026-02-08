@@ -125,7 +125,8 @@ function buildSystemInstruction(styleExamples: StyleExample[]): string {
 
   if (styleExamples.length > 0) {
     instruction += '\n\n【用戶寫作風格參考】\n';
-    instruction += '以下是用戶過去修改的範例，請學習其語氣、用詞和句式特點：\n\n';
+    instruction += '⚠️ **重要警告**：以下範例僅供學習「寫作風格」，絕對不要複製範例內容！請專注於潤飾當前輸入的新文本。\n\n';
+    instruction += '請從以下範例中學習用戶的語氣、用詞和句式特點：\n\n';
 
     styleExamples.forEach((ex, idx) => {
       // 限制每個範例的長度，避免 prompt 過長
@@ -141,8 +142,12 @@ function buildSystemInstruction(styleExamples: StyleExample[]): string {
       instruction += `用戶修改後：${finalPreview}\n\n`;
     });
 
-    instruction += '【特別注意】\n';
-    instruction += '在遵循上述核心技巧的同時，請特別參考「用戶寫作風格參考」中的表達習慣、語氣和用詞偏好。\n';
+    instruction += '【關鍵提醒】\n';
+    instruction += '- ✅ 請模仿上述範例的「風格」和「語氣」\n';
+    instruction += '- ✅ 學習用戶的用詞習慣和句式偏好\n';
+    instruction += '- ❌ 絕對不要輸出範例中的具體內容\n';
+    instruction += '- ❌ 不要讓新文本與範例內容相似\n';
+    instruction += '- ✅ 專注於潤飾當前輸入的新文本\n';
   }
 
   return instruction;
