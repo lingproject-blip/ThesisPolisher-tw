@@ -102,7 +102,7 @@ export const polishThesis = async (text: string): Promise<string> => {
             systemInstruction: SYSTEM_INSTRUCTION,
             temperature: 0.9,  // Increased from 0.7 to add more variability
             topP: 0.9,         // Adjusted from 0.95 for more diverse word choices
-            maxOutputTokens: 2000,
+            maxOutputTokens: 8000,  // Increased from 2000 to handle longer paragraphs
           }
         });
 
