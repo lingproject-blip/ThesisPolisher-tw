@@ -1,7 +1,9 @@
 import { GoogleGenAI } from "@google/genai";
 import { apiKeyManager } from "./apiKeyManager";
+import { styleProfileManager } from "./styleProfileManager";
+import { StyleExample } from "../types";
 
-const SYSTEM_INSTRUCTION = `
+const BASE_SYSTEM_INSTRUCTION = `
 你是一位台灣的碩士研究生，正在幫同學潤飾論文。你的寫作自然、學術但不僵硬。
 
 【最高原則】
@@ -115,6 +117,36 @@ const SYSTEM_INSTRUCTION = `
 請潤飾輸入的文本。
 `;
 
+/**
+ * 構建包含用戶風格範例的系統指令
+ */
+function buildSystemInstruction(styleExamples: StyleExample[]): string {
+  let instruction = BASE_SYSTEM_INSTRUCTION;
+
+  if (styleExamples.length > 0) {
+    instruction += '\n\n【用戶寫作風格參考】\n';
+    instruction += '以下是用戶過去修改的範例，請學習其語氣、用詞和句式特點：\n\n';
+
+    styleExamples.forEach((ex, idx) => {
+      // 限制每個範例的長度，避免 prompt 過長
+      const originalPreview = ex.original.length > 300
+        ? ex.original.substring(0, 300) + '...'
+        : ex.original;
+      const finalPreview = ex.final.length > 300
+        ? ex.final.substring(0, 300) + '...'
+        : ex.final;
+
+      instruction += `範例 ${idx + 1}：\n`;
+      instruction += `原始：${originalPreview}\n`;
+      instruction += `用戶修改後：${finalPreview}\n\n`;
+    });
+
+    instruction += '【特別注意】\n';
+    instruction += '在遵循上述核心技巧的同時，請特別參考「用戶寫作風格參考」中的表達習慣、語氣和用詞偏好。\n';
+  }
+
+  return instruction;
+}
 
 
 const MAX_RETRIES = 2;
@@ -145,6 +177,10 @@ export const polishThesis = async (text: string): Promise<string> => {
     throw new Error("尚未設置 API 密鑰。請在設置中添加至少一個 Gemini API 密鑰。");
   }
 
+  // Get user style examples for personalized polishing
+  const styleExamples = styleProfileManager.getExamples();
+  const systemInstruction = buildSystemInstruction(styleExamples);
+
   let lastError: Error | null = null;
   const maxKeyAttempts = apiKeyManager.getAvailableKeys().length;
 
@@ -161,12 +197,12 @@ export const polishThesis = async (text: string): Promise<string> => {
       try {
         const ai = new GoogleGenAI({ apiKey });
 
-        // Using gemini-1.5-flash for reliable text generation
+        // Using gemini-2.5-flash for reliable text generation
         const response = await ai.models.generateContent({
           model: 'gemini-2.5-flash',
           contents: text,
           config: {
-            systemInstruction: SYSTEM_INSTRUCTION,
+            systemInstruction,
             temperature: 0.9,  // Increased from 0.7 to add more variability
             topP: 0.9,         // Adjusted from 0.95 for more diverse word choices
             maxOutputTokens: 16000,  // Increased to handle very long paragraphs (3000+ chars)

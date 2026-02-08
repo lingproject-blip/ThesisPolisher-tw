@@ -4,6 +4,8 @@ import { Header } from './components/Header';
 import { TextArea } from './components/TextArea';
 import { ActionButton } from './components/ActionButton';
 import { ApiKeyManager } from './components/ApiKeyManager';
+import { StyleLearningButton } from './components/StyleLearningButton';
+import { StyleExamplesPanel } from './components/StyleExamplesPanel';
 import { PolishResult } from './types';
 
 const App: React.FC = () => {
@@ -12,6 +14,8 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [showApiKeyManager, setShowApiKeyManager] = useState<boolean>(false);
+  const [finalText, setFinalText] = useState<string>(''); // 用戶最終確定版
+  const [isEditingFinal, setIsEditingFinal] = useState<boolean>(false);
 
   // Ref to auto-scroll output into view on mobile
   const outputRef = useRef<HTMLDivElement>(null);
@@ -160,11 +164,59 @@ const App: React.FC = () => {
                 ) : null}
               </div>
             ) : result ? (
-              <div className="flex-grow p-6 overflow-y-auto">
-                <div className="prose prose-slate max-w-none">
-                  <p className="font-serif text-lg leading-relaxed text-academic-800 whitespace-pre-wrap">
-                    {result.polished}
-                  </p>
+              <div className="flex-grow flex flex-col">
+                <div className="flex-grow p-6 overflow-y-auto">
+                  {isEditingFinal ? (
+                    <textarea
+                      value={finalText}
+                      onChange={(e) => setFinalText(e.target.value)}
+                      className="w-full h-full font-serif text-lg leading-relaxed text-academic-800 p-4 border border-academic-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
+                      placeholder="在此編輯您的最終版本..."
+                    />
+                  ) : (
+                    <div className="prose prose-slate max-w-none">
+                      <p className="font-serif text-lg leading-relaxed text-academic-800 whitespace-pre-wrap">
+                        {finalText || result.polished}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Style Learning Controls */}
+                <div className="p-4 bg-amber-50/50 border-t border-amber-100 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+                  <div className="flex gap-2 items-center flex-wrap">
+                    {!isEditingFinal ? (
+                      <button
+                        onClick={() => {
+                          setFinalText(result.polished);
+                          setIsEditingFinal(true);
+                        }}
+                        className="text-sm px-3 py-1.5 bg-white border border-academic-300 text-academic-700 rounded-lg hover:bg-academic-50 transition-colors"
+                      >
+                        ✏️ 編輯最終版
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setIsEditingFinal(false)}
+                        className="text-sm px-3 py-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                      >
+                        ✓ 完成編輯
+                      </button>
+                    )}
+
+                    {(finalText || !isEditingFinal) && (
+                      <StyleLearningButton
+                        original={result.original}
+                        polished={result.polished}
+                        final={finalText || result.polished}
+                        onSaved={() => {
+                          // Optional: show success message
+                        }}
+                      />
+                    )}
+                  </div>
+
+                  <StyleExamplesPanel />
                 </div>
               </div>
             ) : (
