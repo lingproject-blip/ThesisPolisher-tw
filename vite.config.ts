@@ -3,8 +3,8 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
-  // Base path for GitHub Pages - will be set to repo name in production
-  const base = mode === 'production' ? '/thesispolisher-tw/' : '/';
+  // Base path for GitHub Pages - must match repository name exactly (case-sensitive)
+  const base = mode === 'production' ? '/ThesisPolisher-tw/' : '/';
 
   return {
     base,
